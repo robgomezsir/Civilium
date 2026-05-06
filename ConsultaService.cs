@@ -86,8 +86,8 @@ public static class ConsultaService
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-gpu",
-            "--window-size=1024,768",
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            "--window-size=1280,900",
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         );
         options.AddExcludedArgument("enable-automation");
         options.AddAdditionalOption("useAutomationExtension", false);
@@ -121,29 +121,127 @@ public static class ConsultaService
         dataField.SendKeys(dataNasc);
     }
 
+    /// <summary>
+    /// Tempo máximo aguardando o usuário concluir o hCaptcha (inclui 2 desafios seguidos).
+    /// Deriva de TempoCaptcha: mín. 2 min, até 10 min.
+    /// </summary>
+    private static TimeSpan TempoMaximoSolucaoHumanaHcaptcha =>
+        TimeSpan.FromSeconds(Math.Min(600, Math.Max(120, TempoCaptcha * 15)));
+
     private static void ResolverCaptcha(ChromeDriver driver)
     {
+        driver.SwitchTo().DefaultContent();
+
+        if (ObterTokenHcaptcha(driver) != null)
+        {
+            Logger.LogDebug("hCaptcha já possui token antes do clique; segue o envio.");
+            return;
+        }
+
+        var captchaFrame = LocalizarFrameCaptcha(driver);
+        driver.SwitchTo().Frame(captchaFrame);
+
         try
         {
-            var captchaFrame = LocalizarFrameCaptcha(driver);
-            driver.SwitchTo().Frame(captchaFrame);
-
             var checkbox = AguardarPrimeiroElementoVisivel(driver, TimeSpan.FromSeconds(TempoCaptcha),
                 By.Id("checkbox"),
                 By.CssSelector("#checkbox"),
                 By.CssSelector("div#checkbox"),
                 By.CssSelector("[role='checkbox']"),
-                By.CssSelector("iframe + * [type='checkbox']"));
+                By.CssSelector("[type='checkbox']"));
             checkbox.Click();
-
-            driver.SwitchTo().DefaultContent();
-            Thread.Sleep(TempoCaptcha * 1000);
         }
         catch (WebDriverTimeoutException)
         {
+            driver.SwitchTo().DefaultContent();
             AjustarTempoCaptchaInterativamente();
             throw;
         }
+
+        driver.SwitchTo().DefaultContent();
+
+        // Para 2 validações seguidas o token só aparece no final; não usar Sleep fixo.
+        Logger.LogInformation(
+            $"Aguardando conclusão manual do hCaptcha (até {TempoMaximoSolucaoHumanaHcaptcha.TotalSeconds:F0}s). " +
+            "Resolva todos os desafios na janela do navegador antes do envio.");
+
+        AguardarTokenHcaptchaEstavel(driver, TempoMaximoSolucaoHumanaHcaptcha);
+    }
+
+    /// <summary>Obtém o valor do token h-captcha no documento principal, se existir.</summary>
+    private static string? ObterTokenHcaptcha(IWebDriver driver)
+    {
+        try
+        {
+            foreach (var by in new[]
+                     {
+                         By.CssSelector("textarea[name='h-captcha-response']"),
+                         By.CssSelector("textarea#h-captcha-response"),
+                         By.CssSelector("textarea.h-captcha-response")
+                     })
+            {
+                var els = driver.FindElements(by);
+                foreach (var el in els)
+                {
+                    try
+                    {
+                        var v = el.GetDomProperty("value");
+                        if (string.IsNullOrWhiteSpace(v))
+                            v = el.GetAttribute("value");
+
+                        if (string.IsNullOrWhiteSpace(v) && driver is IJavaScriptExecutor js)
+                        {
+                            var o = js.ExecuteScript("return arguments[0] && arguments[0].value;", el);
+                            v = o?.ToString();
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(v) && v.Length >= 20)
+                            return v;
+                    }
+                    catch (StaleElementReferenceException) { /* ignora */ }
+                }
+            }
+        }
+        catch { /* ignora */ }
+        return null;
+    }
+
+    /// <summary>
+    /// Espera o token aparecer e permanecer preenchido por um curto período,
+    /// para não enviar entre o 1.º e o 2.º desafio quando o token é limpo no meio.
+    /// </summary>
+    private static void AguardarTokenHcaptchaEstavel(IWebDriver driver, TimeSpan tempoMaximo)
+    {
+        var limite = DateTime.UtcNow + tempoMaximo;
+        DateTime? estavelDesde = null;
+        const int msEntreLeituras = 450;
+        const double segundosEstaveisNecessarios = 1.6;
+
+        while (DateTime.UtcNow < limite)
+        {
+            driver.SwitchTo().DefaultContent();
+            var token = ObterTokenHcaptcha(driver);
+            var agora = DateTime.UtcNow;
+
+            if (!string.IsNullOrEmpty(token))
+            {
+                if (estavelDesde == null)
+                    estavelDesde = agora;
+                else if ((agora - estavelDesde.Value).TotalSeconds >= segundosEstaveisNecessarios)
+                {
+                    Logger.LogInformation($"hCaptcha verificado (token com {token.Length} caracteres).");
+                    return;
+                }
+            }
+            else
+                estavelDesde = null;
+
+            Thread.Sleep(msEntreLeituras);
+        }
+
+        throw new WebDriverTimeoutException(
+            "Tempo esgotado aguardando o hCaptcha. Conclua manualmente todos os desafios (incluindo uma segunda rodada, se aparecer) " +
+            $"ou aumente o tempo nas configurações (atual: busca até {tempoMaximo.TotalSeconds:F0}s).");
     }
 
     private static IWebElement LocalizarFrameCaptcha(ChromeDriver driver)
