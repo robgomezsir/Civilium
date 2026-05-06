@@ -58,5 +58,17 @@ namespace Civilium.Properties {
                 this["TemaEscuro"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int ChromeRemoteDebugPort {
+            get {
+                return ((int)(this["ChromeRemoteDebugPort"]));
+            }
+            set {
+                this["ChromeRemoteDebugPort"] = value;
+            }
+        }
     }
 }

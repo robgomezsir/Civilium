@@ -32,6 +32,11 @@ public static class ConsultaService
         try
         {
             VerificarDependenciasSelenium();
+            var portaAnexo = AppConfig.ChromeRemoteDebugPort;
+            if (portaAnexo > 0)
+                Logger.LogInformation(
+                    $"Chrome: anexando à sessão existente em 127.0.0.1:{portaAnexo} " +
+                    $"(o Chrome deve ter sido aberto com --remote-debugging-port={portaAnexo}).");
             var options = ConfigurarChromeOptions();
             var driver = new ChromeDriver(options);
             AplicarMitigacaoDeteccaoAutomacao(driver);
@@ -97,6 +102,16 @@ public static class ConsultaService
 
     private static ChromeOptions ConfigurarChromeOptions()
     {
+        var portaAnexo = AppConfig.ChromeRemoteDebugPort;
+        if (portaAnexo > 0)
+        {
+            var opcoesAnexo = new ChromeOptions();
+            opcoesAnexo.DebuggerAddress = $"127.0.0.1:{portaAnexo}";
+            opcoesAnexo.AddExcludedArgument("enable-automation");
+            opcoesAnexo.AddAdditionalOption("useAutomationExtension", false);
+            return opcoesAnexo;
+        }
+
         var options = new ChromeOptions();
 
         // Perfil persistente: cookies/contexto reutilizados (menos “cold start” para anti-bot).

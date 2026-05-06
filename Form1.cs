@@ -83,6 +83,15 @@ namespace Civilium
             AppConfig.CarregarConfiguracoes();
             ConfigValidator.ValidarConfiguracoes();
             ConsultaService.SincronizarTimeoutsDoAppConfig();
+            AplicarPoliticaModoChromeAnexo();
+        }
+
+        /// <summary>
+        /// Com Chrome anexado (remote debugging), uma única instância deve ser reutilizada no lote.
+        /// </summary>
+        private static void AplicarPoliticaModoChromeAnexo()
+        {
+            ConsultaService.NovaInstanciaChromePorConsulta = AppConfig.ChromeRemoteDebugPort <= 0;
         }
 
         private void ConfigurarJanela()
@@ -643,6 +652,8 @@ namespace Civilium
 
             btnToggleMenu = CriarBotaoMenu("toggle", "Configurações", ToggleMenu_Click);
             Button btnTema = CriarBotaoMenu("tema", "Tema do app", BtnTema_Click);
+            Button btnChromeAnexo = CriarBotaoMenu("chrome", "Chrome já aberto (anti-bot)", BtnChromeAnexo_Click);
+            btnChromeAnexo.Name = "btnChromeAnexo";
             Button btnTimeout = CriarBotaoMenu("timeout", "Tempo de resolução", btnTimeout_Click);
             Button btnContato = CriarBotaoMenu("contato", "Sobre Civilium®", BtnContato_Click);
             btnTimeout.Name = "btnTimeout";
@@ -650,6 +661,7 @@ namespace Civilium
             // Adicionar os botões na ordem inversa (já que estão usando Dock.Top)
             _menuLateral.Controls.Add(btnContato);
             _menuLateral.Controls.Add(btnTimeout);
+            _menuLateral.Controls.Add(btnChromeAnexo);
             _menuLateral.Controls.Add(btnTema);
             _menuLateral.Controls.Add(btnToggleMenu);
 
@@ -814,6 +826,63 @@ namespace Civilium
                         CiviliumMessageBox.ShowWarning(ex.Message, "Valor inválido", this);
                     }
                 }
+            }
+        }
+
+        private void BtnChromeAnexo_Click(object sender, EventArgs e)
+        {
+            const string instr =
+                "Modo Chrome já aberto (menos sinais típicos de WebDriver):\r\n\r\n" +
+                "1) Feche todas as janelas do Chrome.\r\n" +
+                "2) Abra o Prompt e execute (ajuste o caminho se necessário):\r\n" +
+                "   \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222\r\n\r\n" +
+                "3) No Chrome que abrir, navegue manualmente se quiser; depois use Iniciar na pesquisa.\r\n\r\n" +
+                "Na caixa seguinte informe a mesma porta (use 0 para voltar ao modo automático do app).";
+
+            CiviliumMessageBox.ShowInfo(instr, "Chrome anexado (remote debugging)", this);
+
+            string padrao = AppConfig.ChromeRemoteDebugPort > 0
+                ? AppConfig.ChromeRemoteDebugPort.ToString()
+                : "9222";
+
+            string entrada = Microsoft.VisualBasic.Interaction.InputBox(
+                "Porta do remote debugging (0 = desativar anexação):",
+                "Civilium — Chrome anexado",
+                padrao);
+
+            if (string.IsNullOrWhiteSpace(entrada))
+                return;
+
+            if (!int.TryParse(entrada.Trim(), out int porta) || porta < 0 || porta > 65535)
+            {
+                CiviliumMessageBox.ShowWarning("Informe um número entre 0 e 65535.", "Porta inválida", this);
+                return;
+            }
+
+            try
+            {
+                AppConfig.ChromeRemoteDebugPort = porta;
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                CiviliumMessageBox.ShowWarning(ex.Message, "Valor inválido", this);
+                return;
+            }
+
+            AplicarPoliticaModoChromeAnexo();
+
+            if (porta == 0)
+            {
+                CiviliumMessageBox.ShowInfo(
+                    "Anexação desligada. O app voltará a abrir o Chrome automaticamente (nova instância por consulta, conforme padrão).",
+                    "Configuração", this);
+            }
+            else
+            {
+                CiviliumMessageBox.ShowInfo(
+                    $"Porta {porta}: mantenha o Chrome aberto com --remote-debugging-port={porta} antes de iniciar a pesquisa. " +
+                    "O app usará uma única sessão no lote.",
+                    "Configuração", this);
             }
         }
 

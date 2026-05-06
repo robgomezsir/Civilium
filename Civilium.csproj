@@ -23,6 +23,8 @@
 		<None Remove="Resources\Civilium.ico" />
 		<None Remove="Resources\Civilium_ico.ico" />
 		<None Remove="Resources\Civilium_splash.jpg" />
+		<None Remove="Resources\chrome_claro.png" />
+		<None Remove="Resources\chrome_escuro.png" />
 		<None Remove="Resources\contato_claro.png" />
 		<None Remove="Resources\contato_escuro.png" />
 		<None Remove="Resources\selenium-manager.exe" />
@@ -40,6 +42,12 @@
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<Content Include="Resources\Civilium_splash.jpg">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="Resources\chrome_claro.png">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="Resources\chrome_escuro.png">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<Content Include="Resources\contato_claro.png">

@@ -80,6 +80,30 @@ namespace Civilium
             }
         }
 
+        public static int ChromeRemoteDebugPort
+        {
+            get
+            {
+                try
+                {
+                    return Settings.ChromeRemoteDebugPort;
+                }
+                catch (InvalidCastException)
+                {
+                    return 0;
+                }
+            }
+            set
+            {
+                if (value < 0 || value > 65535)
+                    throw new ArgumentOutOfRangeException(nameof(value), "Use 0 (desligado) ou uma porta entre 1 e 65535.");
+
+                Settings.ChromeRemoteDebugPort = value;
+                SaveSettings();
+                Logger.LogInformation($"ChromeRemoteDebugPort alterado para {value}");
+            }
+        }
+
         public static void CarregarConfiguracoes()
         {
             try
@@ -141,6 +165,12 @@ namespace Civilium
                 {
                     Settings.Default.TimeoutConsulta = 30;
                     Logger.LogWarning("TimeoutConsulta inválido. Redefinido para valor padrão (30s)");
+                }
+
+                if (Settings.Default.ChromeRemoteDebugPort < 0 || Settings.Default.ChromeRemoteDebugPort > 65535)
+                {
+                    Settings.Default.ChromeRemoteDebugPort = 0;
+                    Logger.LogWarning("ChromeRemoteDebugPort inválido. Redefinido para 0 (desligado).");
                 }
 
                 Settings.Default.Save();
