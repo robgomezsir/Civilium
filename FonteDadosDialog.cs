@@ -97,18 +97,19 @@ namespace Civilium
 
             Controls.Add(tabela);
 
-            AplicarCores(temaEscuro, lbl, btnCsv, btnManual, btnCancelar);
+            AplicarCores(temaEscuro, tabela, lbl, btnCsv, btnManual, btnCancelar);
 
             AcceptButton = btnCsv;
             CancelButton = btnCancelar;
         }
 
-        private static void AplicarCores(bool escuro, Label lbl, Button btnCsv, Button btnManual, Button btnCancelar)
+        private void AplicarCores(bool escuro, TableLayoutPanel layout, Label lbl, Button btnCsv, Button btnManual, Button btnCancelar)
         {
             Color fundo = escuro ? Color.FromArgb(45, 45, 48) : Color.White;
             Color texto = escuro ? Color.WhiteSmoke : Color.Black;
 
             BackColor = fundo;
+            layout.BackColor = fundo;
             lbl.BackColor = fundo;
             lbl.ForeColor = texto;
 
