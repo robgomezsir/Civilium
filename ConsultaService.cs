@@ -2,6 +2,7 @@
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -29,7 +30,9 @@ public static class ConsultaService
         {
             VerificarDependenciasSelenium();
             var options = ConfigurarChromeOptions();
-            return new ChromeDriver(options);
+            var driver = new ChromeDriver(options);
+            AplicarMitigacaoDeteccaoAutomacao(driver);
+            return driver;
         }
         catch (Exception ex)
         {
@@ -78,20 +81,68 @@ public static class ConsultaService
         Environment.SetEnvironmentVariable("SE_MANAGER_PATH", seleniumPath);
     }
 
+    private static string ObterDiretorioPerfilChromePersistente()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Civilium",
+            "ChromeProfile");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
     private static ChromeOptions ConfigurarChromeOptions()
     {
         var options = new ChromeOptions();
+
+        // Perfil persistente: cookies/contexto reutilizados (menos “cold start” para anti-bot).
+        options.AddArgument($"--user-data-dir={ObterDiretorioPerfilChromePersistente()}");
+
+        // Não forçar user-agent: o Chrome usa o UA real da instalação (evita inconsistência com o motor).
         options.AddArguments(
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
             "--no-sandbox",
             "--disable-gpu",
             "--window-size=1280,900",
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            "--lang=pt-BR",
+            "--accept-lang=pt-BR,pt,en-US,en"
         );
         options.AddExcludedArgument("enable-automation");
         options.AddAdditionalOption("useAutomationExtension", false);
         return options;
+    }
+
+    /// <summary>
+    /// Reduz sinais típicos de WebDriver antes da primeira navegação (não substitui o hCaptcha manual).
+    /// </summary>
+    private static void AplicarMitigacaoDeteccaoAutomacao(ChromeDriver driver)
+    {
+        const string script = """
+(function () {
+  const clean = () => {
+    try {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true });
+    } catch (e) {}
+    try {
+      delete Object.getPrototypeOf(navigator).webdriver;
+    } catch (e) {}
+    try {
+      Object.keys(window).forEach(function (k) {
+        if (k.indexOf('cdc_') === 0 || k.indexOf('$cdc') === 0) {
+          try { delete window[k]; } catch (e2) {}
+        }
+      });
+    } catch (e) {}
+    if (!window.chrome) window.chrome = { runtime: {} };
+  };
+  clean();
+})();
+""";
+
+        driver.ExecuteCdpCommand(
+            "Page.addScriptToEvaluateOnNewDocument",
+            new Dictionary<string, object> { ["source"] = script });
     }
 
     private static void NavegarParaPaginaConsulta(ChromeDriver driver)
