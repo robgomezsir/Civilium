@@ -1,0 +1,10 @@
+---
+description: Após alterações no código, fazer commit e push para origin.
+alwaysApply: true
+---
+
+# Git: commit e push
+
+- Sempre que concluir alterações neste repositório, executar `git add`, `git commit` com mensagem clara em português e `git push` para `origin` (branch atual, normalmente `main`).
+- Se não houver mudanças, não criar commit vazio.
+- Se o push falhar (auth/rede), informar o utilizador e deixar o commit local pronto.
