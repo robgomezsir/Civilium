@@ -319,7 +319,7 @@ namespace Civilium
 
             try
             {
-                using (var driver = ConsultaService.CriarDriver())
+                if (ConsultaService.NovaInstanciaChromePorConsulta)
                 {
                     await Task.Run(() =>
                     {
@@ -333,7 +333,8 @@ namespace Civilium
 
                             try
                             {
-                                ProcessarLinhaConsulta(driver, linha);
+                                using (var driver = ConsultaService.CriarDriver())
+                                    ProcessarLinhaConsulta(driver, linha);
                                 sucessos++;
                             }
                             catch
@@ -346,10 +347,43 @@ namespace Civilium
                                 AtualizarInterfaceProgresso(atual, total, cronometro, sucessos, erros);
                             }
 
-                            // Pequena pausa para evitar sobrecarga
-                            Thread.Sleep(100);
+                            Thread.Sleep(Random.Shared.Next(400, 1100));
                         }
                     }, cancellationToken);
+                }
+                else
+                {
+                    using (var driver = ConsultaService.CriarDriver())
+                    {
+                        await Task.Run(() =>
+                        {
+                            foreach (DataRow linha in tabelaDados.Rows)
+                            {
+                                if (cancellationToken.IsCancellationRequested)
+                                {
+                                    Logger.LogInformation($"Processo cancelado. Processados: {atual}/{total}");
+                                    break;
+                                }
+
+                                try
+                                {
+                                    ProcessarLinhaConsulta(driver, linha);
+                                    sucessos++;
+                                }
+                                catch
+                                {
+                                    erros++;
+                                }
+                                finally
+                                {
+                                    atual++;
+                                    AtualizarInterfaceProgresso(atual, total, cronometro, sucessos, erros);
+                                }
+
+                                Thread.Sleep(100);
+                            }
+                        }, cancellationToken);
+                    }
                 }
             }
             catch (Exception ex)

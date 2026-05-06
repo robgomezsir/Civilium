@@ -1,6 +1,7 @@
 ﻿using Civilium;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,9 @@ using System.Text.RegularExpressions;
 
 public static class ConsultaService
 {
-    // Configurações (espelho em memória; persistência via AppConfig)
+    /// <summary>Se true, cada linha abre um novo Chrome (sequencial); reduz reutilização de sessão marcada como bot.</summary>
+    public static bool NovaInstanciaChromePorConsulta { get; set; } = true;
+
     public static int TempoCaptcha { get; set; } = 8;
     public static int TempoConsulta { get; set; } = 30;
 
@@ -32,6 +35,7 @@ public static class ConsultaService
             var options = ConfigurarChromeOptions();
             var driver = new ChromeDriver(options);
             AplicarMitigacaoDeteccaoAutomacao(driver);
+            ConfigurarFusoHorarioBrasil(driver);
             return driver;
         }
         catch (Exception ex)
@@ -99,33 +103,47 @@ public static class ConsultaService
         options.AddArgument($"--user-data-dir={ObterDiretorioPerfilChromePersistente()}");
 
         // Não forçar user-agent: o Chrome usa o UA real da instalação (evita inconsistência com o motor).
+        // Sem --no-sandbox no Windows desktop (costuma elevar pontuação de automação).
         options.AddArguments(
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
-            "--no-sandbox",
             "--disable-gpu",
-            "--window-size=1280,900",
+            "--window-size=1366,768",
             "--lang=pt-BR",
-            "--accept-lang=pt-BR,pt,en-US,en"
+            "--accept-lang=pt-BR,pt,en-US,en",
+            "--disable-infobars"
         );
         options.AddExcludedArgument("enable-automation");
         options.AddAdditionalOption("useAutomationExtension", false);
         return options;
     }
 
-    /// <summary>
-    /// Reduz sinais típicos de WebDriver antes da primeira navegação (não substitui o hCaptcha manual).
-    /// </summary>
-    private static void AplicarMitigacaoDeteccaoAutomacao(ChromeDriver driver)
-    {
-        const string script = """
+    /// <summary>JavaScript executado em cada documento novo e após navegação para reduzir fingerprint WebDriver.</summary>
+    private const string ScriptPatchAntibotDocumento = """
 (function () {
-  const clean = () => {
+  const patch = function () {
     try {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined, configurable: true });
     } catch (e) {}
     try {
       delete Object.getPrototypeOf(navigator).webdriver;
+    } catch (e) {}
+    try {
+      Object.defineProperty(navigator, 'languages', {
+        get: () => Object.freeze(['pt-BR', 'pt', 'en-US', 'en']),
+        configurable: true
+      });
+    } catch (e) {}
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        const original = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = function (parameters) {
+          if (parameters && parameters.name === 'notifications') {
+            return Promise.resolve({ state: Notification.permission, onchange: null });
+          }
+          return original(parameters);
+        };
+      }
     } catch (e) {}
     try {
       Object.keys(window).forEach(function (k) {
@@ -134,21 +152,72 @@ public static class ConsultaService
         }
       });
     } catch (e) {}
-    if (!window.chrome) window.chrome = { runtime: {} };
+    if (!window.chrome) window.chrome = {};
+    if (!window.chrome.runtime) window.chrome.runtime = {};
   };
-  clean();
+  patch();
 })();
 """;
 
+    /// <summary>
+    /// Reduz sinais típicos de WebDriver antes da primeira navegação (não substitui o hCaptcha manual).
+    /// </summary>
+    private static void AplicarMitigacaoDeteccaoAutomacao(ChromeDriver driver)
+    {
         driver.ExecuteCdpCommand(
             "Page.addScriptToEvaluateOnNewDocument",
-            new Dictionary<string, object> { ["source"] = script });
+            new Dictionary<string, object> { ["source"] = ScriptPatchAntibotDocumento });
+    }
+
+    private static void ConfigurarFusoHorarioBrasil(ChromeDriver driver)
+    {
+        var p = new Dictionary<string, object> { ["timezoneId"] = "America/Sao_Paulo" };
+        foreach (var cmd in new[] { "Emulation.setTimezoneOverride", "Emulation.setTimezoneId" })
+        {
+            try
+            {
+                driver.ExecuteCdpCommand(cmd, p);
+                return;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug($"CDP {cmd}: {ex.Message}");
+            }
+        }
     }
 
     private static void NavegarParaPaginaConsulta(ChromeDriver driver)
     {
-        driver.Navigate().GoToUrl("https://servicos.receita.fazenda.gov.br/Servicos/CPF/ConsultaSituacao/ConsultaPublica.asp");
+        driver.Navigate().GoToUrl(
+            "https://servicos.receita.fazenda.gov.br/Servicos/CPF/ConsultaSituacao/ConsultaPublica.asp");
+        try
+        {
+            var pronto = new WebDriverWait(driver, TimeSpan.FromSeconds(Math.Min(TempoConsulta, 45)));
+            pronto.Until(d =>
+            {
+                try
+                {
+                    var state = ((IJavaScriptExecutor)d).ExecuteScript("return document.readyState")?.ToString();
+                    return state == "complete" || state == "interactive";
+                }
+                catch { return false; }
+            });
+        }
+        catch { /* segue */ }
+
+        PausaAleatoriaMs(350, 900);
+        try
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript(ScriptPatchAntibotDocumento);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug($"Patch pós-navegação: {ex.Message}");
+        }
     }
+
+    private static void PausaAleatoriaMs(int minInclusive, int maxInclusive) =>
+        Thread.Sleep(Random.Shared.Next(minInclusive, maxInclusive + 1));
 
     private static void PreencherDadosConsulta(ChromeDriver driver, string cpf, string dataNasc)
     {
@@ -159,8 +228,8 @@ public static class ConsultaService
             By.CssSelector("input#txtCPF"),
             By.XPath("//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cpf') or contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'cpf')]"));
 
-        cpfField.Clear();
-        cpfField.SendKeys(cpf);
+        DigitarComRitmoHumano(driver, cpfField, cpf);
+        PausaAleatoriaMs(200, 550);
 
         var dataField = AguardarPrimeiroElementoVisivel(driver, timeout,
             By.Id("txtDataNascimento"),
@@ -168,8 +237,33 @@ public static class ConsultaService
             By.CssSelector("input#txtDataNascimento"),
             By.XPath("//input[contains(translate(@id,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nasc') or contains(translate(@name,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'nasc')]"));
 
-        dataField.Clear();
-        dataField.SendKeys(dataNasc);
+        DigitarComRitmoHumano(driver, dataField, dataNasc);
+        PausaAleatoriaMs(250, 600);
+    }
+
+    private static void DigitarComRitmoHumano(IWebDriver driver, IWebElement campo, string texto)
+    {
+        try
+        {
+            new Actions(driver)
+                .MoveToElement(campo)
+                .Pause(TimeSpan.FromMilliseconds(Random.Shared.Next(80, 220)))
+                .Click()
+                .Perform();
+        }
+        catch
+        {
+            campo.Click();
+        }
+
+        PausaAleatoriaMs(100, 280);
+        campo.Clear();
+        PausaAleatoriaMs(60, 160);
+        foreach (var ch in texto)
+        {
+            campo.SendKeys(ch.ToString());
+            PausaAleatoriaMs(25, 92);
+        }
     }
 
     /// <summary>
@@ -200,7 +294,18 @@ public static class ConsultaService
                 By.CssSelector("div#checkbox"),
                 By.CssSelector("[role='checkbox']"),
                 By.CssSelector("[type='checkbox']"));
-            checkbox.Click();
+            try
+            {
+                new Actions(driver)
+                    .MoveToElement(checkbox, Random.Shared.Next(2, 8), Random.Shared.Next(2, 8))
+                    .Pause(TimeSpan.FromMilliseconds(Random.Shared.Next(120, 380)))
+                    .Click()
+                    .Perform();
+            }
+            catch
+            {
+                checkbox.Click();
+            }
         }
         catch (WebDriverTimeoutException)
         {
@@ -217,6 +322,16 @@ public static class ConsultaService
             "Resolva todos os desafios na janela do navegador antes do envio.");
 
         AguardarTokenHcaptchaEstavel(driver, TempoMaximoSolucaoHumanaHcaptcha);
+
+        driver.SwitchTo().DefaultContent();
+        PausaAleatoriaMs(900, 2600);
+        if (ObterTokenHcaptcha(driver) == null)
+        {
+            throw new WebDriverTimeoutException(
+                "O token do hCaptcha não está mais presente antes do envio. Aguarde o checkmark verde e tente de novo.");
+        }
+
+        Logger.LogDebug("Token hCaptcha confirmado imediatamente antes da etapa de envio.");
     }
 
     /// <summary>Obtém o valor do token h-captcha no documento principal, se existir.</summary>
@@ -266,7 +381,7 @@ public static class ConsultaService
         var limite = DateTime.UtcNow + tempoMaximo;
         DateTime? estavelDesde = null;
         const int msEntreLeituras = 450;
-        const double segundosEstaveisNecessarios = 1.6;
+        const double segundosEstaveisNecessarios = 2.25;
 
         while (DateTime.UtcNow < limite)
         {
@@ -313,6 +428,9 @@ public static class ConsultaService
 
     private static void SubmeterConsulta(ChromeDriver driver)
     {
+        driver.SwitchTo().DefaultContent();
+        PausaAleatoriaMs(280, 700);
+
         var timeout = TimeSpan.FromSeconds(TempoConsulta);
         var enviar = AguardarPrimeiroElementoVisivel(driver, timeout,
             By.Id("id_submit"),
@@ -323,7 +441,26 @@ public static class ConsultaService
             By.XPath("//input[@type='submit' or @type='image']"),
             By.XPath("//button[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'consultar')]"));
 
-        enviar.Click();
+        try
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript(
+                "arguments[0].scrollIntoView({block:'center', behavior:'instant'});", enviar);
+        }
+        catch { /* ignora */ }
+
+        PausaAleatoriaMs(150, 420);
+        try
+        {
+            new Actions(driver)
+                .MoveToElement(enviar)
+                .Pause(TimeSpan.FromMilliseconds(Random.Shared.Next(80, 220)))
+                .Click()
+                .Perform();
+        }
+        catch
+        {
+            enviar.Click();
+        }
     }
 
     private const string MsgLayoutReceitaDesconhecido = "LAYOUT DA RECEITA ALTERADO — ATUALIZE O CIVILIUM";
