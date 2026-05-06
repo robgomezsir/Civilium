@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36310.24
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Civilium", "Civilium.csproj", "{1C87BB02-5041-4D15-997E-3047639FF8B4}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "CiviliumInstaller", "..\CiviliumInstaller\CiviliumInstaller.vdproj", "{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}"
+EndProject
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "selenium-manager", "..\CiviliumInstaller\Debug\selenium-manager.exe", "{88B70599-A29D-2941-A455-AFAA9D156470}"
+	ProjectSection(DebuggerProjectSystem) = preProject
+		PortSupplier = 00000000-0000-0000-0000-000000000000
+		Executable = C:\Users\robgo\source\repos\CiviliumInstaller\Debug\selenium-manager.exe
+		RemoteMachine = CCA-NEXT-PREMIU
+		StartingDirectory = C:\Users\robgo\source\repos\CiviliumInstaller\Debug
+		Environment = Padrão
+		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		UseLegacyDebugEngines = No
+		LaunchSQLEngine = No
+		AttachLaunchAction = No
+		IORedirection = Auto
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Debug|x86.Build.0 = Debug|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Release|x86.ActiveCfg = Release|Any CPU
+		{1C87BB02-5041-4D15-997E-3047639FF8B4}.Release|x86.Build.0 = Release|Any CPU
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Debug|Any CPU.ActiveCfg = Debug
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Debug|x86.ActiveCfg = Debug
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Debug|x86.Build.0 = Debug
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Release|Any CPU.ActiveCfg = Release
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Release|x86.ActiveCfg = Release
+		{1D2DE1D7-7F43-BB53-5BC6-D0A113919519}.Release|x86.Build.0 = Release
+		{88B70599-A29D-2941-A455-AFAA9D156470}.Debug|Any CPU.ActiveCfg = Release|x86
+		{88B70599-A29D-2941-A455-AFAA9D156470}.Debug|x86.ActiveCfg = Release|x86
+		{88B70599-A29D-2941-A455-AFAA9D156470}.Release|Any CPU.ActiveCfg = Release|x86
+		{88B70599-A29D-2941-A455-AFAA9D156470}.Release|x86.ActiveCfg = Release|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {45CE5AF7-50B2-48BE-8A07-5569599E504C}
+	EndGlobalSection
+EndGlobal

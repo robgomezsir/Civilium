@@ -1,0 +1,36 @@
+## Build / publicação
+[Bb]in/
+[Oo]bj/
+[Dd]ist/
+out/
+publish/
+
+## Visual Studio / VS Code
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Rider / VS Code (opcional)
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+## NuGet
+*.nupkg
+**/packages/
+
+## Logs e diagnóstico local
+logs/
+*.log
+
+## OS
+Thumbs.db
+Desktop.ini
+*.tmp
+
+## Certificados / segredos
+*.pfx
+secrets.json
+appsettings.*.local.json
