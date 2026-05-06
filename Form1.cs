@@ -112,56 +112,85 @@ namespace Civilium
         #region Eventos dos Botões Principais
         private async void btnIniciar_Click(object sender, EventArgs e)
         {
-            if (openFileDialog1.ShowDialog() != DialogResult.OK) return;
-
-            try
+            using (var fonteDlg = new FonteDadosDialog(temaEscuro))
             {
-                Logger.LogInformation($"Iniciando processo de consulta. Arquivo: {openFileDialog1.FileName}");
-
-                string caminhoCSV = openFileDialog1.FileName;
-                tabelaDados = ArquivoService.CarregarCSV(caminhoCSV);
-
-                if (tabelaDados.Rows.Count == 0)
-                {
-                    CiviliumMessageBox.ShowWarning("Nenhum dado encontrado no arquivo selecionado.",
-                        "Aviso", this);
+                if (fonteDlg.ShowDialog(this) != DialogResult.OK)
                     return;
-                }
 
-                Logger.LogInformation($"Arquivo carregado. Total de registros: {tabelaDados.Rows.Count}");
-
-                ConfigurarBotoesProcessamento(true);
-                cts = new CancellationTokenSource();
-
-                await ProcessarConsultasAsync(cts.Token);
-
-                if (!cts.Token.IsCancellationRequested)
+                try
                 {
-                    CiviliumMessageBox.ShowInfo("Processo concluído com sucesso!",
-                        "Sucesso", this);
+                    if (fonteDlg.Escolha == FonteDadosPesquisa.ArquivoCsv)
+                    {
+                        if (openFileDialog1.ShowDialog() != DialogResult.OK)
+                            return;
 
-                    Logger.LogInformation("Processo de consulta concluído com sucesso");
+                        Logger.LogInformation($"Iniciando processo de consulta. Arquivo: {openFileDialog1.FileName}");
+                        tabelaDados = ArquivoService.CarregarCSV(openFileDialog1.FileName);
+
+                        if (tabelaDados.Rows.Count == 0)
+                        {
+                            CiviliumMessageBox.ShowWarning("Nenhum dado encontrado no arquivo selecionado.",
+                                "Aviso", this);
+                            return;
+                        }
+                    }
+                    else if (fonteDlg.Escolha == FonteDadosPesquisa.InsercaoManual)
+                    {
+                        using (var manual = new InsercaoManualForm(temaEscuro))
+                        {
+                            if (manual.ShowDialog(this) != DialogResult.OK)
+                                return;
+                            tabelaDados = manual.TabelaPreenchida;
+                        }
+
+                        if (tabelaDados == null || tabelaDados.Rows.Count == 0)
+                        {
+                            CiviliumMessageBox.ShowWarning("Nenhum dado para processar.",
+                                "Aviso", this);
+                            return;
+                        }
+
+                        Logger.LogInformation(
+                            $"Iniciando consulta com dados manuais. Total de registros: {tabelaDados.Rows.Count}");
+                    }
+                    else
+                        return;
+
+                    Logger.LogInformation($"Dados carregados. Total de registros: {tabelaDados.Rows.Count}");
+
+                    ConfigurarBotoesProcessamento(true);
+                    cts = new CancellationTokenSource();
+
+                    await ProcessarConsultasAsync(cts.Token);
+
+                    if (!cts.Token.IsCancellationRequested)
+                    {
+                        CiviliumMessageBox.ShowInfo("Processo concluído com sucesso!",
+                            "Sucesso", this);
+
+                        Logger.LogInformation("Processo de consulta concluído com sucesso");
+                    }
+                    else
+                    {
+                        CiviliumMessageBox.ShowInfo("Processo interrompido pelo usuário.",
+                            "Informação", this);
+
+                        Logger.LogInformation("Processo de consulta interrompido pelo usuário");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    CiviliumMessageBox.ShowInfo("Processo interrompido pelo usuário.",
-                        "Informação", this);
+                    Logger.LogError("Erro durante o processamento", ex);
 
-                    Logger.LogInformation("Processo de consulta interrompido pelo usuário");
+                    CiviliumMessageBox.ShowError($"Ocorreu um erro durante o processamento:\n\n{ex.Message}",
+                        "Erro", this);
                 }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("Erro durante o processamento", ex);
-
-                CiviliumMessageBox.ShowError($"Ocorreu um erro durante o processamento:\n\n{ex.Message}",
-                    "Erro", this);
-            }
-            finally
-            {
-                ConfigurarBotoesProcessamento(false);
-                cts?.Dispose();
-                cts = null;
+                finally
+                {
+                    ConfigurarBotoesProcessamento(false);
+                    cts?.Dispose();
+                    cts = null;
+                }
             }
         }
 
@@ -468,7 +497,8 @@ namespace Civilium
 
         private void ConfigurarTooltipsBotoesPrincipais()
         {
-            toolTipBotoesPrincipais.SetToolTip(btnIniciar, "Inicia o processo de consulta de CPF na Receita Federal");
+            toolTipBotoesPrincipais.SetToolTip(btnIniciar,
+                "Inicia a consulta na Receita: carregue um CSV ou insira os dados manualmente");
             toolTipBotoesPrincipais.SetToolTip(btnParar, "Para o processo de consulta em andamento");
             toolTipBotoesPrincipais.SetToolTip(btnExportar, "Exporta os resultados da pesquisa para arquivo Excel");
 

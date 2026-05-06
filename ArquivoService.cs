@@ -6,7 +6,8 @@ using System.Linq;
 
 public static class ArquivoService
 {
-    public static DataTable CarregarCSV(string caminho)
+    /// <summary>Estrutura padrão da grade (igual ao CSV exportado / consumido pelo processamento).</summary>
+    public static DataTable CriarEstruturaTabelaConsultaVazia()
     {
         var dt = new DataTable();
         dt.Columns.Add("NOME");
@@ -15,6 +16,12 @@ public static class ArquivoService
         dt.Columns.Add("NOME NA RECEITA");
         dt.Columns.Add("SITUAÇÃO NA RECEITA");
         dt.Columns.Add("STATUS");
+        return dt;
+    }
+
+    public static DataTable CarregarCSV(string caminho)
+    {
+        var dt = CriarEstruturaTabelaConsultaVazia();
 
         foreach (var linha in File.ReadAllLines(caminho).Skip(1))
         {
